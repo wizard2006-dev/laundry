@@ -94,7 +94,7 @@ def init_db():
     c.execute("SELECT COUNT(*) FROM admin")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO admin (username, password, nama) VALUES (?, ?, ?)",
-                  ('admin', 'admin123', 'Administrator'))
+                  ('laundry', '262006', 'Administrator'))
     
     # Default Pengaturan
     c.execute("SELECT COUNT(*) FROM pengaturan")
