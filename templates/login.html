@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Admin - FreshLaundry</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { font-family: 'Nunito', sans-serif; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #f7fcf9 0%, #e6f7f0 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(13,150,105,.1), rgba(212,114,74,.1));
+            animation: bubbleFloat 8s ease-in-out infinite;
+        }
+        @keyframes bubbleFloat {
+            0%,100%{transform:translate(0,0)} 33%{transform:translate(20px,-30px)} 66%{transform:translate(-15px,20px)}
+        }
+        .login-card {
+            background: white;
+            border-radius: 28px;
+            padding: 40px;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(13, 150, 105, .15);
+            position: relative;
+            z-index: 10;
+            animation: slideUp .5s ease;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .btn-utama {
+            width: 100%;
+            background: linear-gradient(135deg, #0d9669, #0aa878);
+            color: white;
+            padding: 14px;
+            border-radius: 14px;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all .3s ease;
+            box-shadow: 0 4px 20px rgba(13, 150, 105, .3);
+            font-size: 15px;
+        }
+        .btn-utama:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(13, 150, 105, .4); }
+        .input-field {
+            width: 100%;
+            padding: 14px 18px;
+            border: 2px solid #e2e8f0;
+            border-radius: 14px;
+            background: white;
+            font-size: 15px;
+            transition: all .3s ease;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .input-field:focus { border-color: #0d9669; box-shadow: 0 0 0 4px rgba(13,150,105,.1); }
+        .error-box {
+            background: rgba(220, 38, 38, .08);
+            color: #dc2626;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="bubble" style="width:300px;height:300px;top:10%;left:5%;opacity:.5"></div>
+    <div class="bubble" style="width:200px;height:200px;bottom:10%;right:10%;opacity:.4;animation-delay:2s"></div>
+    
+    <div class="login-card">
+        <div style="text-align:center;margin-bottom:28px">
+            <div style="width:70px;height:70px;border-radius:22px;background:linear-gradient(135deg,#0d9669,#0aa878);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;box-shadow:0 8px 28px rgba(13,150,105,.35)">
+                <i class="fas fa-lock" style="color:white;font-size:28px"></i>
+            </div>
+            <h2 style="font-size:24px;font-weight:800;margin:0 0 8px 0">Login Admin</h2>
+            <p style="color:#64748b;font-size:14px;margin:0">Masukkan kredensial untuk mengakses panel</p>
+        </div>
+        
+        {% if error %}
+        <div class="error-box">{{ error }}</div>
+        {% endif %}
+        
+        <form method="POST" style="display:grid;gap:16px">
+            <div>
+                <label style="display:block;font-weight:700;margin-bottom:8px;font-size:14px">Username</label>
+                <input type="text" name="username" required class="input-field" placeholder="Masukkan username" autocomplete="username">
+            </div>
+            <div>
+                <label style="display:block;font-weight:700;margin-bottom:8px;font-size:14px">Password</label>
+                <input type="password" name="password" required class="input-field" placeholder="Masukkan password" autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn-utama">
+                <i class="fas fa-sign-in-alt" style="margin-right:8px"></i>Masuk ke Sistem
+            </button>
+        </form>
+        
+        <div style="margin-top:20px;padding:14px;background:rgba(13,150,105,.08);border-radius:12px;text-align:center">
+            <div style="font-size:12px;color:#64748b;font-weight:600;margin-bottom:4px">Demo Credentials</div>
+            <div style="font-size:13px;font-weight:700;color:#0d9669">Username: <strong>admin</strong> • Password: <strong>admin123</strong></div>
+        </div>
+        
+        <a href="/" style="display:block;margin-top:16px;text-align:center;color:#64748b;font-size:14px;text-decoration:none;font-weight:600" onmouseover="this.style.color='#0d9669'" onmouseout="this.style.color='#64748b'">
+            <i class="fas fa-arrow-left" style="margin-right:6px"></i>Kembali ke Beranda
+        </a>
+    </div>
+</body>
+</html>

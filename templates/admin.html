@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - {{ p.nama_website }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        :root {
+            --warna-utama: {{ p.warna_utama }};
+            --warna-sekunder: {{ p.warna_sekunder }};
+        }
+        
+        * { font-family: 'Nunito', sans-serif; box-sizing: border-box; }
+        body { margin: 0; background: #f7fcf9; color: #0f172a; }
+        
+        /* SIDEBAR */
+        #sidebar {
+            width: 260px; background: white; border-right: 1px solid #e2e8f0;
+            padding: 16px; flex-shrink: 0; position: fixed; top: 0; left: 0;
+            height: 100vh; overflow-y: auto; z-index: 100;
+            transition: transform .3s ease;
+        }
+        #sidebar::-webkit-scrollbar { width: 6px; }
+        #sidebar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 3px; }
+        
+        .sidebar-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4);
+            z-index: 99; backdrop-filter: blur(2px);
+        }
+        .sidebar-overlay.show { display: block; }
+        
+        @media (max-width: 768px) {
+            #sidebar { transform: translateX(-100%); }
+            #sidebar.open { transform: translateX(0); }
+        }
+        
+        .sidebar-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 14px; border-radius: 12px;
+            color: #64748b; font-weight: 600; cursor: pointer;
+            transition: all .2s ease; margin-bottom: 2px;
+            font-size: 14px;
+        }
+        .sidebar-item:hover { background: rgba(13,150,105,.08); color: var(--warna-utama); }
+        .sidebar-item.active {
+            background: linear-gradient(135deg, rgba(13,150,105,.12), rgba(13,150,105,.05));
+            color: var(--warna-utama);
+            border-left: 3px solid var(--warna-utama);
+        }
+        .sidebar-item i { width: 20px; text-align: center; }
+        
+        .btn-utama {
+            background: linear-gradient(135deg, var(--warna-utama), #0aa878);
+            color: white; padding: 10px 20px; border-radius: 12px;
+            font-weight: 700; border: none; cursor: pointer;
+            transition: all .3s ease; box-shadow: 0 4px 16px rgba(13,150,105,.25);
+            display: inline-flex; align-items: center; gap: 8px;
+            font-size: 14px;
+        }
+        .btn-utama:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(13,150,105,.35); }
+        
+        .btn-kedua {
+            background: white; color: #0f172a; padding: 10px 20px;
+            border-radius: 12px; font-weight: 700; border: 2px solid #e2e8f0;
+            cursor: pointer; transition: all .3s ease;
+            display: inline-flex; align-items: center; gap: 8px;
+            font-size: 14px;
+        }
+        .btn-kedua:hover { border-color: var(--warna-utama); color: var(--warna-utama); }
+        
+        .btn-hapus {
+            background: rgba(220,38,38,.08); color: #dc2626;
+            padding: 8px 14px; border-radius: 10px; font-weight: 600;
+            border: none; cursor: pointer; transition: all .2s ease;
+            font-size: 13px;
+        }
+        .btn-hapus:hover { background: rgba(220,38,38,.15); }
+        
+        .card-hover { transition: all .3s ease; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(13,150,105,.12); }
+        
+        .input-field {
+            width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0;
+            border-radius: 12px; background: white; font-size: 14px;
+            transition: all .3s ease; outline: none; box-sizing: border-box;
+        }
+        .input-field:focus { border-color: var(--warna-utama); box-shadow: 0 0 0 4px rgba(13,150,105,.1); }
+        
+        .kanban-col {
+            min-height: 400px; background: rgba(13,150,105,.04);
+            border-radius: 16px; padding: 16px; transition: background .3s ease;
+        }
+        .kanban-col.drag-over { background: rgba(13,150,105,.12); }
+        .kanban-card {
+            background: white; border-radius: 12px; padding: 14px;
+            margin-bottom: 12px; cursor: grab; border: 1px solid #e2e8f0;
+            transition: all .2s ease; box-shadow: 0 2px 8px rgba(0,0,0,.04);
+        }
+        .kanban-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); transform: translateY(-2px); }
+        .kanban-card.dragging { opacity: .5; transform: rotate(2deg); }
+        
+        .status-badge {
+            display: inline-block; padding: 4px 12px; border-radius: 20px;
+            font-size: 12px; font-weight: 700;
+        }
+        .status-diterima { background: rgba(59,130,246,.12); color: #2563eb; }
+        .status-dicuci { background: rgba(234,179,8,.14); color: #b45309; }
+        .status-siap { background: rgba(13,148,136,.14); color: #0d9488; }
+        .status-selesai { background: rgba(13,150,105,.14); color: var(--warna-utama); }
+        
+        .toast {
+            position: fixed; top: 24px; right: 24px; z-index: 9999;
+            padding: 16px 24px; border-radius: 14px; font-weight: 700;
+            color: white; animation: slideIn .3s ease;
+            box-shadow: 0 10px 40px rgba(0,0,0,.2);
+        }
+        .toast.sukses { background: linear-gradient(135deg, #0d9669, #0aa878); }
+        .toast.error { background: linear-gradient(135deg, #dc2626, #ef4444); }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(100px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        /* HAMBURGER */
+        .hamburger {
+            display: none; width: 44px; height: 44px; border-radius: 12px;
+            background: white; border: 1px solid #e2e8f0;
+            align-items: center; justify-content: center; cursor: pointer;
+            font-size: 20px; color: #0f172a; transition: all .2s;
+        }
+        .hamburger:hover { background: rgba(13,150,105,.08); color: var(--warna-utama); }
+        @media (max-width: 768px) {
+            .hamburger { display: flex; }
+        }
+        
+        /* MAIN CONTENT */
+        #main-content {
+            margin-left: 260px; padding: 24px; min-height: 100vh;
+            transition: margin-left .3s ease;
+        }
+        @media (max-width: 768px) {
+            #main-content { margin-left: 0; }
+        }
+        
+        /* STRUK PRINT */
+        @media print {
+            body * { visibility: hidden; }
+            #struk-print, #struk-print * { visibility: visible; }
+            #struk-print {
+                position: absolute; left: 0; top: 0; width: 100%;
+                padding: 20px; font-family: 'Courier New', monospace;
+            }
+        }
+        
+        .logo-upload-area {
+            width: 140px; height: 140px; border: 3px dashed #e2e8f0;
+            border-radius: 20px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all .3s; overflow: hidden;
+            background: #f7fcf9; flex-direction: column; gap: 8px;
+        }
+        .logo-upload-area:hover {
+            border-color: var(--warna-utama);
+            background: rgba(13,150,105,.05);
+        }
+        .logo-upload-area img {
+            max-width: 100%; max-height: 100%; object-fit: contain;
+        }
+        
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { scrollbar-width: none; }
+    </style>
+</head>
+<body>
+
+<!-- SIDEBAR OVERLAY (MOBILE) -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+    <div style="display:flex;align-items:center;gap:10px;padding:12px;margin-bottom:20px">
+        {% if p.logo_path %}
+        <img src="{{ p.logo_path }}" style="width:40px;height:40px;border-radius:12px;object-fit:cover">
+        {% else %}
+        <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--warna-utama),#0aa878);display:flex;align-items:center;justify-content:center">
+            <i class="fas fa-soap" style="color:white"></i>
+        </div>
+        {% endif %}
+        <div style="min-width:0">
+            <div style="font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.nama_website }}</div>
+            <div style="font-size:11px;color:#64748b;font-weight:600">Admin Panel</div>
+        </div>
+    </div>
+    
+    <nav style="display:grid;gap:2px">
+        <div class="sidebar-item active" onclick="switchTab('dashboard',this)">
+            <i class="fas fa-chart-line"></i>Dashboard
+        </div>
+        <div class="sidebar-item" onclick="switchTab('pesanan',this)">
+            <i class="fas fa-columns"></i>Manajemen Pesanan
+        </div>
+        <div class="sidebar-item" onclick="switchTab('kasir',this)">
+            <i class="fas fa-cash-register"></i>Kasir / Order Baru
+        </div>
+        <div class="sidebar-item" onclick="switchTab('pelanggan',this)">
+            <i class="fas fa-users"></i>Manajemen Pelanggan
+        </div>
+        <div class="sidebar-item" onclick="switchTab('layanan',this)">
+            <i class="fas fa-tags"></i>Layanan & Harga
+        </div>
+        <div class="sidebar-item" onclick="switchTab('inventory',this)">
+            <i class="fas fa-boxes"></i>Inventory
+        </div>
+        <div class="sidebar-item" onclick="switchTab('laporan',this)">
+            <i class="fas fa-file-invoice-dollar"></i>Laporan Keuangan
+        </div>
+        <div class="sidebar-item" onclick="switchTab('pengaturan',this)">
+            <i class="fas fa-cog"></i>Pengaturan Website
+        </div>
+    </nav>
+    
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;background:rgba(13,150,105,.08);border-radius:12px;margin-bottom:10px">
+            <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--warna-utama),var(--warna-sekunder));display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:13px;flex-shrink:0">A</div>
+            <div style="min-width:0">
+                <div style="font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ admin_nama }}</div>
+                <div style="font-size:11px;color:#64748b">Administrator</div>
+            </div>
+        </div>
+        <a href="/logout" style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;color:#64748b;font-weight:600;text-decoration:none;transition:all .2s;font-size:14px" onmouseover="this.style.background='rgba(220,38,38,.08)';this.style.color='#dc2626'" onmouseout="this.style.background='transparent';this.style.color='#64748b'">
+            <i class="fas fa-sign-out-alt" style="width:20px;text-align:center"></i>Keluar
+        </a>
+    </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<div id="main-content">
+    
+    <!-- TOP BAR -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+            <button class="hamburger" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="hidden md:block">
+                <h2 id="page-title" style="font-size:24px;font-weight:800;margin:0">Dashboard</h2>
+                <p id="page-subtitle" style="color:#64748b;margin:4px 0 0 0;font-size:14px">Ringkasan operasional laundry</p>
+            </div>
+        </div>
+        <a href="/logout" class="btn-kedua hidden md:inline-flex" style="padding:8px 16px;font-size:13px;text-decoration:none">
+            <i class="fas fa-sign-out-alt"></i>Keluar
+        </a>
+    </div>
+    
+    <!-- MOBILE TITLE -->
+    <div class="md:hidden" style="margin-bottom:20px">
+        <h2 id="page-title-mobile" style="font-size:22px;font-weight:800;margin:0">Dashboard</h2>
+        <p id="page-subtitle-mobile" style="color:#64748b;margin:4px 0 0 0;font-size:13px">Ringkasan operasional</p>
+    </div>
+    
+        <!-- ==================== DASHBOARD ==================== -->
+<div id="tab-dashboard" class="tab-content" style="padding:10px 0">
+    <style>
+    @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+    @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    .kartu-dash{transition:all .3s ease;position:relative;overflow:hidden}
+    .kartu-dash:hover{transform:translateY(-4px) scale(1.01)}
+    .blur-bulat{position:absolute;border-radius:50%;background:rgba(255,255,255,.15);filter:blur(6px)}
+    /* OTOMATIS MENYESUAIKAN LAYAR HP */
+    .grid-atas{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .grid-bawah{display:grid;grid-template-columns:1.6fr 1fr;gap:12px;margin-top:12px}
+    @media(max-width:768px){
+        .grid-atas{grid-template-columns:repeat(2,1fr)!important;gap:10px}
+        .grid-bawah{grid-template-columns:1fr!important}
+    }
+    @media(max-width:480px){
+        .grid-atas{grid-template-columns:1fr!important;gap:10px}
+    }
+    </style>
+
+    <!-- 4 KARTU ATAS -->
+    <div class="grid-atas">
+        <!-- PENDAFTARAN -->
+        <div class="kartu-dash" style="background:linear-gradient(135deg,#0d9669,#34d399);border-radius:16px;padding:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.9);text-transform:uppercase">Pendapatan</div>
+                    <div id="dash-pendapatan" style="font-size:20px;font-weight:900;color:white;margin-top:4px">Rp 0</div>
+                </div>
+                <div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:white;animation:bounce 2s infinite">
+                    <i class="fas fa-money-bill-wave" style="font-size:16px"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- TOTAL PESANAN -->
+        <div class="kartu-dash" style="background:linear-gradient(135deg,#d4724a,#fbbf24);border-radius:16px;padding:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.9);text-transform:uppercase">Total Pesanan</div>
+                    <div id="dash-pesanan" style="font-size:20px;font-weight:900;color:white;margin-top:4px">0</div>
+                </div>
+                <div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:white;animation:bounce 2s infinite .2s">
+                    <i class="fas fa-clipboard-list" style="font-size:16px"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- DIPROSES -->
+        <div class="kartu-dash" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6);border-radius:16px;padding:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.9);text-transform:uppercase">Diproses</div>
+                    <div id="dash-diproses" style="font-size:20px;font-weight:900;color:white;margin-top:4px">0</div>
+                </div>
+                <div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:white;animation:spin 3s linear infinite">
+                    <i class="fas fa-spinner" style="font-size:16px"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- PELANGGAN -->
+        <div class="kartu-dash" style="background:linear-gradient(135deg,#ec4899,#fb7185);border-radius:16px;padding:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <div>
+                    <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.9);text-transform:uppercase">Pelanggan</div>
+                    <div id="dash-pelanggan" style="font-size:20px;font-weight:900;color:white;margin-top:4px">0</div>
+                </div>
+                <div style="width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:white;animation:bounce 2s infinite .4s">
+                    <i class="fas fa-users" style="font-size:16px"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BAWAH - PESANAN TERBARU + STATUS -->
+    <div class="grid-bawah">
+        <div style="background:white;border-radius:16px;padding:14px;box-shadow:0 2px 12px rgba(13,150,105,.06)">
+            <div style="font-size:14px;font-weight:800;margin-bottom:10px;background:linear-gradient(135deg,#0d9669,#6366f1);-webkit-background-clip:text;-webkit-text-fill-color:transparent">📋 Pesanan Terbaru</div>
+            <div id="dash-pesanan-list" style="display:grid;gap:6px;max-height:200px;overflow:hidden"></div>
+        </div>
+        <div style="background:white;border-radius:16px;padding:14px;box-shadow:0 2px 12px rgba(212,114,74,.06)">
+            <div style="font-size:14px;font-weight:800;margin-bottom:10px;background:linear-gradient(135deg,#d4724a,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent">📊 Status Pesanan</div>
+            <div id="dash-status-chart" style="display:grid;gap:8px"></div>
+        </div>
+    </div>
+</div>
+    
+    <!-- ==================== MANAJEMEN PESANAN ==================== -->
+    <div id="tab-pesanan" class="tab-content" style="display:none">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+            <input type="text" id="search-pesanan" oninput="renderKanban()" placeholder="Cari pesanan..." class="input-field" style="max-width:220px;padding:10px 14px">
+        </div>
+        
+        <div style="display:grid;grid-template-columns:1fr;gap:16px;overflow-x:auto;padding-bottom:12px" class="md:grid-cols-2 xl:grid-cols-4">
+            <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                    <span class="status-badge status-diterima">Diterima</span>
+                    <span id="count-diterima" style="font-weight:700;color:#64748b;font-size:13px">0</span>
+                </div>
+                <div class="kanban-col" id="col-diterima" ondrop="dropKanban(event,'Diterima')" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div>
+            </div>
+            <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                    <span class="status-badge status-dicuci">Sedang Dicuci</span>
+                    <span id="count-dicuci" style="font-weight:700;color:#64748b;font-size:13px">0</span>
+                </div>
+                <div class="kanban-col" id="col-dicuci" ondrop="dropKanban(event,'Sedang Dicuci')" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div>
+            </div>
+            <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                    <span class="status-badge status-siap">Siap Diambil</span>
+                    <span id="count-siap" style="font-weight:700;color:#64748b;font-size:13px">0</span>
+                </div>
+                <div class="kanban-col" id="col-siap" ondrop="dropKanban(event,'Siap Diambil')" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div>
+            </div>
+            <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                    <span class="status-badge status-selesai">Selesai</span>
+                    <span id="count-selesai" style="font-weight:700;color:#64748b;font-size:13px">0</span>
+                </div>
+                <div class="kanban-col" id="col-selesai" ondrop="dropKanban(event,'Selesai')" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ==================== KASIR ==================== -->
+    <div id="tab-kasir" class="tab-content" style="display:none">
+        <div style="height:4px;margin-bottom:16px"></div>
+        
+        <div style="display:grid;grid-template-columns:1fr;gap:20px" class="lg:grid-cols-3">
+            <div style="background:white;border-radius:18px;padding:24px;border:1px solid #e2e8f0" class="lg:col-span-2">
+                <form onsubmit="buatPesanan(event)" style="display:grid;gap:16px">
+                    <div style="display:grid;grid-template-columns:1fr;gap:16px" class="md:grid-cols-2">
+                        <div>
+                            <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Nama Pelanggan</label>
+                            <input type="text" id="order-nama" required class="input-field" placeholder="Masukkan nama">
+                        </div>
+                        <div>
+                            <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">No. WhatsApp</label>
+                            <input type="text" id="order-hp" required class="input-field" placeholder="Contoh: 08123456789">
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr;gap:16px" class="md:grid-cols-2">
+                        <div>
+                            <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Pilih Layanan</label>
+                            <select id="order-layanan" onchange="hitungTotal()" class="input-field"></select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Jumlah / Berat</label>
+                            <input type="number" id="order-jumlah" value="1" min="0.1" step="0.1" oninput="hitungTotal()" required class="input-field">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:8px;font-size:13px">Metode Pembayaran</label>
+                        <div style="display:grid;grid-template-columns:1fr;gap:10px" class="sm:grid-cols-3">
+                            <label style="display:flex;align-items:center;gap:8px;padding:12px;border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;transition:all .2s;font-weight:600;font-size:14px">
+                                <input type="radio" name="metode" value="Cash" checked style="accent-color:var(--warna-utama)"> Cash
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;padding:12px;border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;transition:all .2s;font-weight:600;font-size:14px">
+                                <input type="radio" name="metode" value="Transfer" style="accent-color:var(--warna-utama)"> Transfer
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;padding:12px;border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;transition:all .2s;font-weight:600;font-size:14px">
+                                <input type="radio" name="metode" value="QRIS" style="accent-color:var(--warna-utama)"> QRIS
+                            </label>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap">
+                        <button type="submit" class="btn-utama" style="flex:1;min-width:160px;justify-content:center;padding:14px">
+                            <i class="fas fa-check-circle"></i>Proses & Cetak Struk
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <div style="background:linear-gradient(180deg,rgba(13,150,105,.08),transparent);border-radius:18px;padding:24px;border:1px solid #e2e8f0">
+                <h3 style="font-size:16px;font-weight:800;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid #e2e8f0">Ringkasan</h3>
+                <div style="display:grid;gap:12px;font-size:14px">
+                    <div style="display:flex;justify-content:space-between">
+                        <span style="color:#64748b;font-weight:600">Layanan</span>
+                        <span id="ringkasan-layanan" style="font-weight:700">-</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between">
+                        <span style="color:#64748b;font-weight:600">Harga Satuan</span>
+                        <span id="ringkasan-satuan" style="font-weight:700">-</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between">
+                        <span style="color:#64748b;font-weight:600">Jumlah</span>
+                        <span id="ringkasan-jumlah" style="font-weight:700">-</span>
+                    </div>
+                    <div style="padding-top:12px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+                        <span style="font-weight:800">Total</span>
+                        <span id="ringkasan-total" style="font-weight:800;font-size:22px;color:var(--warna-utama)">Rp 0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- MODAL STRUK -->
+        <div id="modal-struk" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px)">
+            <div style="background:white;border-radius:20px;padding:28px;max-width:400px;width:100%;max-height:90vh;overflow-y:auto">
+                <div id="struk-print">
+                    <div style="text-align:center;border-bottom:2px dashed #e2e8f0;padding-bottom:16px;margin-bottom:16px">
+                        {% if p.logo_path %}
+                        <img src="{{ p.logo_path }}" style="width:60px;height:60px;border-radius:12px;object-fit:cover;margin:0 auto 8px">
+                        {% else %}
+                        <div style="width:60px;height:60px;border-radius:12px;background:linear-gradient(135deg,var(--warna-utama),#0aa878);display:flex;align-items:center;justify-content:center;margin:0 auto 8px">
+                            <i class="fas fa-soap" style="color:white;font-size:24px"></i>
+                        </div>
+                        {% endif %}
+                        <div style="font-weight:800;font-size:18px">{{ p.nama_website }}</div>
+                        <div style="font-size:12px;color:#64748b">{{ p.alamat }}</div>
+                        <div style="font-size:12px;color:#64748b">WA: {{ p.nomor_wa }}</div>
+                    </div>
+                    <div style="border-bottom:2px dashed #e2e8f0;padding-bottom:12px;margin-bottom:12px;font-size:13px">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                            <span>No. Order</span><span style="font-weight:700" id="struk-id">#-</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                            <span>Tanggal</span><span id="struk-tanggal">-</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                            <span>Kasir</span><span>{{ admin_nama }}</span>
+                        </div>
+                    </div>
+                    <div style="border-bottom:2px dashed #e2e8f0;padding-bottom:12px;margin-bottom:12px;font-size:13px">
+                        <div style="font-weight:700;margin-bottom:8px">Pelanggan: <span id="struk-pelanggan">-</span></div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                            <span id="struk-layanan">-</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                            <span id="struk-jumlah">-</span>
+                            <span id="struk-subtotal" style="font-weight:700">-</span>
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;margin-bottom:12px">
+                        <span>TOTAL</span>
+                        <span style="color:var(--warna-utama)" id="struk-total">Rp 0</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:16px">
+                        <span>Pembayaran:</span>
+                        <span style="font-weight:700" id="struk-metode">-</span>
+                    </div>
+                    <div style="text-align:center;font-size:12px;color:#64748b;border-top:2px dashed #e2e8f0;padding-top:12px">
+                        <div style="font-weight:700;margin-bottom:4px">Terima Kasih!</div>
+                        <div>Cucian bersih, hidup lebih segar ✨</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:20px">
+                    <button onclick="cetakStruk()" class="btn-utama" style="flex:1;justify-content:center">
+                        <i class="fas fa-print"></i>Cetak
+                    </button>
+                    <button onclick="tutupStruk()" class="btn-kedua" style="flex:1;justify-content:center">Tutup</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ==================== PELANGGAN ==================== -->
+    <div id="tab-pelanggan" class="tab-content" style="display:none">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+            <input type="text" id="search-pelanggan" oninput="renderPelanggan()" placeholder="Cari pelanggan..." class="input-field" style="max-width:220px;padding:10px 14px">
+        </div>
+        
+        <div style="background:white;border-radius:18px;border:1px solid #e2e8f0;overflow:hidden">
+            <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:14px">
+                    <thead>
+                        <tr style="background:#f7fcf9">
+                            <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Nama</th>
+                            <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">No. WA</th>
+                            <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Transaksi</th>
+                            <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Total Belanja</th>
+                            <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Terakhir</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-pelanggan"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ==================== LAYANAN ==================== -->
+    <div id="tab-layanan" class="tab-content" style="display:none">
+        <div style="height:4px;margin-bottom:16px"></div>
+        
+        <div style="display:grid;grid-template-columns:1fr;gap:20px" class="lg:grid-cols-3">
+            <div style="background:white;border-radius:18px;padding:20px;border:1px solid #e2e8f0">
+                <h3 style="font-size:16px;font-weight:800;margin:0 0 16px 0">Tambah Layanan</h3>
+                <form onsubmit="tambahLayanan(event)" style="display:grid;gap:12px">
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Nama Layanan</label>
+                        <input type="text" id="layanan-nama" required class="input-field" placeholder="Contoh: Cuci Karpet">
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Harga (Rp)</label>
+                        <input type="number" id="layanan-harga" required class="input-field" placeholder="50000">
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Satuan</label>
+                        <select id="layanan-satuan" class="input-field">
+                            <option value="Kg">Kg</option>
+                            <option value="Pcs">Pcs</option>
+                            <option value="Pasang">Pasang</option>
+                            <option value="Meter">Meter</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Ikon (Font Awesome)</label>
+                        <input type="text" id="layanan-ikon" class="input-field" placeholder="fa-carpet" value="fa-tshirt">
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Deskripsi</label>
+                        <textarea id="layanan-deskripsi" class="input-field" rows="2" placeholder="Deskripsi singkat..."></textarea>
+                    </div>
+                    <button type="submit" class="btn-utama" style="justify-content:center">
+                        <i class="fas fa-plus"></i>Tambah
+                    </button>
+                </form>
+            </div>
+            
+            <div style="background:white;border-radius:18px;border:1px solid #e2e8f0;overflow:hidden" class="lg:col-span-2">
+                <div style="overflow-x:auto">
+                    <table style="width:100%;border-collapse:collapse;font-size:14px">
+                        <thead>
+                            <tr style="background:#f7fcf9">
+                                <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Nama</th>
+                                <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Harga</th>
+                                <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Satuan</th>
+                                <th style="text-align:left;padding:14px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-layanan"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ==================== INVENTORY ==================== -->
+    <div id="tab-inventory" class="tab-content" style="display:none">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px">
+            <button onclick="tambahInventory()" class="btn-utama">
+                <i class="fas fa-plus"></i>Tambah Item
+            </button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr;gap:16px" class="sm:grid-cols-2 lg:grid-cols-3" id="inventory-grid"></div>
+    </div>
+    
+    <!-- ==================== LAPORAN ==================== -->
+    <div id="tab-laporan" class="tab-content" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+            <div>
+                <h2 style="font-size:22px;font-weight:800;margin:0 0 4px 0">Laporan Keuangan</h2>
+                <p style="color:#64748b;margin:0;font-size:13px">Ringkasan pendapatan & riwayat transaksi</p>
+            </div>
+            <button onclick="exportPDF()" class="btn-utama">
+                <i class="fas fa-file-pdf"></i>Export PDF
+            </button>
+        </div>
+        
+        <style>
+            .finance-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+            .kartu-keuangan{position:relative;overflow:hidden;border-radius:16px;padding:14px;min-height:100px;color:white;box-shadow:0 5px 16px rgba(15,23,42,.08);transition:all .25s ease}
+            .kartu-keuangan:hover{transform:translateY(-3px);box-shadow:0 10px 24px rgba(15,23,42,.12)}
+            .kartu-keuangan .finance-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.88)}
+            .kartu-keuangan .finance-value{font-size:19px;font-weight:900;margin-top:5px;line-height:1.15}
+            .kartu-keuangan .finance-count{font-size:10px;margin-top:5px;color:rgba(255,255,255,.8)}
+            .kartu-keuangan .finance-icon{position:absolute;right:12px;top:12px;width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center}
+            .finance-shape{position:absolute;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,.08);right:-20px;bottom:-30px}
+            @media(max-width:768px){.finance-grid{grid-template-columns:1fr 1fr}}
+            @media(max-width:480px){.finance-grid{grid-template-columns:1fr}}
+        </style>
+        <div class="finance-grid">
+            <div class="kartu-keuangan" style="background:linear-gradient(135deg,#0d9669,#34d399)">
+                <div class="finance-label">Hari Ini</div>
+                <div id="lap-harian" class="finance-value">Rp 0</div>
+                <div id="lap-harian-cnt" class="finance-count">0 transaksi</div>
+                <div class="finance-icon"><i class="fas fa-calendar-day"></i></div>
+                <div class="finance-shape"></div>
+            </div>
+            <div class="kartu-keuangan" style="background:linear-gradient(135deg,#d4724a,#fbbf24)">
+                <div class="finance-label">Minggu Ini</div>
+                <div id="lap-mingguan" class="finance-value">Rp 0</div>
+                <div id="lap-mingguan-cnt" class="finance-count">0 transaksi</div>
+                <div class="finance-icon"><i class="fas fa-chart-line"></i></div>
+                <div class="finance-shape"></div>
+            </div>
+            <div class="kartu-keuangan" style="background:linear-gradient(135deg,#3b82f6,#8b5cf6)">
+                <div class="finance-label">Bulan Ini</div>
+                <div id="lap-bulanan" class="finance-value">Rp 0</div>
+                <div id="lap-bulanan-cnt" class="finance-count">0 transaksi</div>
+                <div class="finance-icon"><i class="fas fa-wallet"></i></div>
+                <div class="finance-shape"></div>
+            </div>
+        </div>
+        
+        <div style="background:white;border-radius:18px;border:1px solid #e2e8f0;overflow:hidden">
+            <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0">
+                <h3 style="font-size:16px;font-weight:800;margin:0">Riwayat Transaksi</h3>
+            </div>
+            <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:14px">
+                    <thead>
+                        <tr style="background:#f7fcf9">
+                            <th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">ID</th>
+                            <th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Pelanggan</th>
+                            <th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Layanan</th>
+                            <th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Total</th>
+                            <th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Status</th>
+                            <th style="text-align:left;padding:12px 16px;font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase">Tanggal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-laporan-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ==================== PENGATURAN ==================== -->
+    <div id="tab-pengaturan" class="tab-content" style="display:none">
+        <div style="height:4px;margin-bottom:16px"></div>
+        
+        <form onsubmit="simpanPengaturan(event)" style="display:grid;gap:20px">
+            
+            <!-- LOGO -->
+            <div style="background:white;border-radius:18px;padding:24px;border:1px solid #e2e8f0">
+                <h3 style="font-size:16px;font-weight:800;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid #e2e8f0">
+                    <i class="fas fa-image" style="margin-right:10px;color:var(--warna-utama)"></i>Logo Laundry
+                </h3>
+                <div style="display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap">
+                    <div>
+                        <label class="logo-upload-area" onclick="document.getElementById('logo-input').click()">
+                            {% if p.logo_path %}
+                            <img src="{{ p.logo_path }}" id="logo-preview">
+                            {% else %}
+                            <i class="fas fa-cloud-upload-alt" style="font-size:32px;color:var(--warna-utama)"></i>
+                            <span style="font-size:12px;color:#64748b;font-weight:600">Upload Logo</span>
+                            {% endif %}
+                        </label>
+                        <input type="file" id="logo-input" accept="image/*" style="display:none" onchange="uploadLogo(event)">
+                        {% if p.logo_path %}
+                        <button type="button" onclick="hapusLogo()" class="btn-hapus" style="margin-top:10px;width:140px;display:block">
+                            <i class="fas fa-trash"></i>Hapus Logo
+                        </button>
+                        {% endif %}
+                    </div>
+                    <div style="flex:1;min-width:200px">
+                        <div style="font-weight:700;margin-bottom:6px;font-size:14px">Petunjuk:</div>
+                        <ul style="color:#64748b;font-size:13px;margin:0;padding-left:18px;line-height:1.7">
+                            <li>Format: PNG, JPG, JPEG, GIF, SVG</li>
+                            <li>Ukuran maksimal: 2 MB</li>
+                            <li>Disarankan ukuran persegi (contoh: 200x200 px)</li>
+                            <li>Background transparan (PNG) lebih bagus</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+
+            <!-- IKON INDEX - 2 EDITABLE IMAGES -->
+<div style="background:white;border-radius:20px;padding:24px;border:1px solid #e2e8f0;box-shadow:0 8px 24px rgba(23,53,45,.05)"><h3 style="font-size:16px;font-weight:800;margin:0 0 8px;padding-bottom:12px;border-bottom:1px solid #e2e8f0"><i class="fas fa-images" style="margin-right:10px;color:var(--warna-utama)"></i>Ikon Index</h3><p style="font-size:11px;color:#64748b;margin:0 0 18px">Atur dua gambar Index secara terpisah.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:14px"><div style="border:1px solid #e1e9e4;border-radius:17px;padding:14px;background:#f8fbf9"><b style="font-size:12px">Ikon Hero Utama</b><div style="width:130px;height:130px;margin:12px auto;border-radius:50%;background:#c6ddc9;display:grid;place-items:center;overflow:hidden"><img src="{{ p.hero_icon_path or '' }}" style="width:100px;height:100px;object-fit:contain;{% if not p.hero_icon_path %}display:none{% endif %}"><i class="fas fa-shirt" style="font-size:68px;color:#079b72;{% if p.hero_icon_path %}display:none{% endif %}"></i></div><label class="btn-kedua" style="cursor:pointer;display:block;text-align:center;padding:9px;font-size:10px"><i class="fas fa-upload"></i> Ganti Ikon<input type="file" accept="image/*" style="display:none" onchange="uploadHeroIcon(event,1)"></label>{% if p.hero_icon_path %}<button type="button" onclick="hapusHeroIcon(1)" class="btn-hapus" style="width:100%;padding:8px;margin-top:7px;font-size:10px">Kembalikan</button>{% endif %}</div><div style="border:1px solid #e1e9e4;border-radius:17px;padding:14px;background:#f8fbf9"><b style="font-size:12px">Ikon Bagian Keluarga</b><div style="width:130px;height:130px;margin:12px auto;border-radius:50%;background:#c6ddc9;display:grid;place-items:center;overflow:hidden"><img src="{{ p.hero_icon_path_2 or '' }}" style="width:92px;height:92px;object-fit:contain;{% if not p.hero_icon_path_2 %}display:none{% endif %}"><i class="fas fa-shirt" style="font-size:60px;color:#079b72;{% if p.hero_icon_path_2 %}display:none{% endif %}"></i></div><label class="btn-kedua" style="cursor:pointer;display:block;text-align:center;padding:9px;font-size:10px"><i class="fas fa-upload"></i> Ganti Ikon<input type="file" accept="image/*" style="display:none" onchange="uploadHeroIcon(event,2)"></label>{% if p.hero_icon_path_2 %}<button type="button" onclick="hapusHeroIcon(2)" class="btn-hapus" style="width:100%;padding:8px;margin-top:7px;font-size:10px">Kembalikan</button>{% endif %}</div></div><div style="font-size:10px;color:#94a3b8;margin-top:10px">PNG transparan direkomendasikan · maksimal 2 MB.</div></div>
+<!-- IDENTITAS -->
+            <div style="background:white;border-radius:18px;padding:24px;border:1px solid #e2e8f0">
+                <h3 style="font-size:16px;font-weight:800;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid #e2e8f0">
+                    <i class="fas fa-store" style="margin-right:10px;color:var(--warna-utama)"></i>Identitas Website
+                </h3>
+                <div style="display:grid;grid-template-columns:1fr;gap:16px" class="md:grid-cols-2">
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Nama Website</label>
+                        <input type="text" name="nama_website" value="{{ p.nama_website }}" class="input-field">
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Tagline / Slogan</label>
+                        <input type="text" name="tagline" value="{{ p.tagline }}" class="input-field">
+                    </div>
+                    <div style="grid-column:1/-1">
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Deskripsi Singkat</label>
+                        <textarea name="deskripsi" rows="3" class="input-field">{{ p.deskripsi }}</textarea>
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Subtitle Hero</label>
+                        <input type="text" name="hero_subtitle" value="{{ p.hero_subtitle }}" class="input-field">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- KONTAK -->
+            <div style="background:white;border-radius:18px;padding:24px;border:1px solid #e2e8f0">
+                <h3 style="font-size:16px;font-weight:800;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid #e2e8f0">
+                    <i class="fas fa-address-card" style="margin-right:10px;color:var(--warna-utama)"></i>Kontak & Lokasi
+                </h3>
+                <div style="display:grid;grid-template-columns:1fr;gap:16px" class="md:grid-cols-2">
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Nomor WhatsApp</label>
+                        <input type="tel" name="nomor_wa" value="{{ p.nomor_wa }}" class="input-field" inputmode="numeric" maxlength="16" placeholder="081234567890" pattern="(?:0|\+?62)8[1-9][0-9]{7,10}" required><small style="display:block;color:#64748b;margin-top:5px">Wajib nomor WhatsApp Indonesia. Contoh: 081234567890 atau +6281234567890</small>
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Alamat Outlet</label>
+                        <input type="text" name="alamat" value="{{ p.alamat }}" class="input-field">
+                    </div>
+                    <div style="grid-column:1/-1">
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Jam Operasional</label>
+                        <input type="text" name="jam_operasional" value="{{ p.jam_operasional }}" class="input-field">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- STATISTIK -->
+            <div style="background:white;border-radius:18px;padding:24px;border:1px solid #e2e8f0">
+                <h3 style="font-size:16px;font-weight:800;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid #e2e8f0">
+                    <i class="fas fa-chart-bar" style="margin-right:10px;color:var(--warna-utama)"></i>Statistik di Hero
+                </h3>
+                <div style="display:grid;grid-template-columns:1fr;gap:16px" class="md:grid-cols-3">
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Statistik Pelanggan</label>
+                        <input type="text" name="stat_pelanggan" value="{{ p.stat_pelanggan }}" class="input-field" placeholder="5K+">
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Statistik Cucian</label>
+                        <input type="text" name="stat_cucian" value="{{ p.stat_cucian }}" class="input-field" placeholder="50K+">
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Statistik Rating</label>
+                        <input type="text" name="stat_rating" value="{{ p.stat_rating }}" class="input-field" placeholder="4.9">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- WARNA -->
+            <div style="background:white;border-radius:18px;padding:24px;border:1px solid #e2e8f0">
+                <h3 style="font-size:16px;font-weight:800;margin:0 0 16px 0;padding-bottom:12px;border-bottom:1px solid #e2e8f0">
+                    <i class="fas fa-palette" style="margin-right:10px;color:var(--warna-utama)"></i>Tampilan & Warna
+                </h3>
+                <div style="display:grid;grid-template-columns:1fr;gap:16px" class="md:grid-cols-2">
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Warna Utama</label>
+                        <div style="display:flex;gap:10px;align-items:center">
+                            <input type="color" name="warna_utama" value="{{ p.warna_utama }}" style="width:56px;height:44px;border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;padding:2px">
+                            <input type="text" name="warna_utama_text" value="{{ p.warna_utama }}" class="input-field" onchange="document.querySelector('input[name=warna_utama]').value=this.value">
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display:block;font-weight:700;margin-bottom:6px;font-size:13px">Warna Sekunder</label>
+                        <div style="display:flex;gap:10px;align-items:center">
+                            <input type="color" name="warna_sekunder" value="{{ p.warna_sekunder }}" style="width:56px;height:44px;border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;padding:2px">
+                            <input type="text" name="warna_sekunder_text" value="{{ p.warna_sekunder }}" class="input-field" onchange="document.querySelector('input[name=warna_sekunder]').value=this.value">
+                        </div>
+                    </div>
+                </div>
+                <div style="margin-top:14px;padding:12px 16px;background:#f7fcf9;border-radius:12px;font-size:13px;color:#64748b">
+                    <i class="fas fa-info-circle" style="margin-right:6px;color:var(--warna-utama)"></i>
+                    <strong>Catatan:</strong> Setelah menyimpan, refresh halaman untuk melihat perubahan warna.
+                </div>
+            </div>
+            
+            <!-- TOMBOL -->
+            <div style="display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap">
+                <button type="button" onclick="location.reload()" class="btn-kedua">Reset</button>
+                <button type="submit" class="btn-utama" style="padding:12px 28px">
+                    <i class="fas fa-save"></i>Simpan Pengaturan
+                </button>
+            </div>
+        </form>
+    </div>
+    
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
+
+<script>
+let layananList = [], pesananList = [], inventoryList = [], draggedId = null;
+let lastOrderData = null;
+
+// ============ TOAST ============
+function toast(msg, type='sukses'){
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.innerHTML = `<i class="fas ${type==='sukses'?'fa-check-circle':'fa-exclamation-circle'}" style="margin-right:10px"></i>${msg}`;
+    document.getElementById('toast-container').appendChild(t);
+    setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(100px)';t.style.transition='all .3s';setTimeout(()=>t.remove(),300)},2500);
+}
+
+// ============ SIDEBAR TOGGLE ============
+function toggleSidebar(){
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('show');
+}
+
+// ============ TAB SWITCH ============
+const pageTitles = {
+    dashboard: {title:'Dashboard', sub:'Ringkasan operasional laundry'},
+    pesanan: {title:'Manajemen Pesanan', sub:'Gunakan dropdown atau drag & drop untuk ubah status'},
+    kasir: {title:'Kasir / Order Baru', sub:'Input data pesanan pelanggan'},
+    pelanggan: {title:'Manajemen Pelanggan', sub:'Daftar semua pelanggan'},
+    layanan: {title:'Layanan & Harga', sub:'Kelola daftar layanan'},
+    inventory: {title:'Manajemen Inventory', sub:'Pantau stok bahan & perlengkapan'},
+    laporan: {title:'Laporan Keuangan', sub:'Ringkasan pendapatan & transaksi'},
+    pengaturan: {title:'Pengaturan Website', sub:'Atur konten halaman utama'}
+};
+
+function switchTab(tab, el){
+    document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+    document.getElementById('tab-' + tab).style.display = 'block';
+    
+    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+    if(el && el.classList.contains('sidebar-item')) el.classList.add('active');
+    
+    const titles = pageTitles[tab];
+    document.getElementById('page-title').textContent = titles.title;
+    document.getElementById('page-subtitle').textContent = titles.sub;
+    document.getElementById('page-title-mobile').textContent = titles.title;
+    document.getElementById('page-subtitle-mobile').textContent = titles.sub;
+    
+    if(window.innerWidth <= 768) toggleSidebar();
+    
+    if(tab === 'dashboard') loadDashboard();
+    if(tab === 'pesanan') loadPesanan();
+    if(tab === 'kasir') loadKasir();
+    if(tab === 'pelanggan') loadPelanggan();
+    if(tab === 'layanan') loadLayanan();
+    if(tab === 'inventory') loadInventory();
+    if(tab === 'laporan') loadLaporan();
+}
+
+// ============ API HELPERS ============
+async function api(url, method='GET', data=null, isFormData=false){
+    const opt = {method};
+    if(data && !isFormData){
+        opt.headers = {'Content-Type':'application/json'};
+        opt.body = JSON.stringify(data);
+    } else if(data && isFormData){
+        opt.body = data;
+    }
+    const res = await fetch(url, opt);
+    return res.json();
+}
+
+// ============ DASHBOARD ============
+async function loadDashboard(){
+    pesananList = await api('/api/pesanan');
+    const hariIni = pesananList.filter(p => {
+        const tgl = new Date(p.tanggal);
+        return tgl.toDateString() === new Date().toDateString();
+    });
+    const pendapatan = hariIni.reduce((s,p) => s + parseFloat(p.total_harga), 0);
+    const diproses = pesananList.filter(p => p.status !== 'Selesai').length;
+    const pelangganSet = new Set(pesananList.map(p => p.no_hp));
+    
+    document.getElementById('dash-pendapatan').textContent = 'Rp ' + pendapatan.toLocaleString('id-ID');
+    document.getElementById('dash-pesanan').textContent = pesananList.length;
+    document.getElementById('dash-diproses').textContent = diproses;
+    document.getElementById('dash-pelanggan').textContent = pelangganSet.size;
+    
+    const recent = pesananList.slice(0,5);
+    document.getElementById('dash-pesanan-list').innerHTML = recent.length ? recent.map(p => {
+        const sc = p.status === 'Diterima' ? 'status-diterima' : p.status === 'Sedang Dicuci' ? 'status-dicuci' : p.status === 'Siap Diambil' ? 'status-siap' : 'status-selesai';
+        return `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px;background:#f7fcf9;border-radius:10px">
+                <div>
+                    <div style="font-weight:700;font-size:13px">${p.nama_pelanggan}</div>
+                    <div style="font-size:11px;color:#64748b">${p.nama_layanan} • ${p.jumlah}</div>
+                </div>
+                <div style="text-align:right">
+                    <div style="font-weight:800;color:var(--warna-utama);font-size:13px">Rp ${parseFloat(p.total_harga).toLocaleString('id-ID')}</div>
+                    <span class="status-badge ${sc}" style="margin-top:4px;display:inline-block;font-size:11px">${p.status}</span>
+                </div>
+            </div>
+        `;
+    }).join('') : '<div style="text-align:center;padding:24px;color:#64748b;font-size:13px">Belum ada pesanan</div>';
+    
+    const statuses = ['Diterima','Sedang Dicuci','Siap Diambil','Selesai'];
+    const colors = ['#3b82f6','#eab308','#0d9488','var(--warna-utama)'];
+    document.getElementById('dash-status-chart').innerHTML = statuses.map((s,i) => {
+        const count = pesananList.filter(p => p.status === s).length;
+        const pct = pesananList.length ? (count/pesananList.length*100).toFixed(0) : 0;
+        return `
+            <div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                    <span style="font-weight:600;font-size:13px">${s}</span>
+                    <span style="font-weight:800;font-size:13px">${count}</span>
+                </div>
+                <div style="height:8px;background:#e2e8f0;border-radius:10px;overflow:hidden">
+                    <div style="height:100%;width:${pct}%;background:${colors[i]};border-radius:10px;transition:width .5s"></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ============ KANBAN PESANAN + DROPDOWN STATUS ============
+async function loadPesanan(){
+    pesananList = await api('/api/pesanan');
+    renderKanban();
+}
+
+function renderKanban(){
+    const search = document.getElementById('search-pesanan')?.value?.toLowerCase() || '';
+    const filtered = pesananList.filter(p => 
+        p.nama_pelanggan.toLowerCase().includes(search) || 
+        (p.no_hp || '').includes(search) || p.nama_layanan.toLowerCase().includes(search)
+    );
+    
+    const statuses = [
+        {key:'Diterima',col:'col-diterima',count:'count-diterima'},
+        {key:'Sedang Dicuci',col:'col-dicuci',count:'count-dicuci'},
+        {key:'Siap Diambil',col:'col-siap',count:'count-siap'},
+        {key:'Selesai',col:'col-selesai',count:'count-selesai'}
+    ];
+    
+    const allStatuses = ['Diterima','Sedang Dicuci','Siap Diambil','Selesai'];
+    
+    statuses.forEach(s => {
+        const items = filtered.filter(p => p.status === s.key);
+        document.getElementById(s.count).textContent = items.length;
+        document.getElementById(s.col).innerHTML = items.map(p => {
+            const sc = s.key === 'Diterima' ? 'status-diterima' : s.key === 'Sedang Dicuci' ? 'status-dicuci' : s.key === 'Siap Diambil' ? 'status-siap' : 'status-selesai';
+            return `
+                <div class="kanban-card" draggable="true" ondragstart="dragStart(event,${p.id})" ondragend="dragEnd(event)">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+                        <div style="font-weight:800;font-size:13px">${p.nama_pelanggan}</div>
+                        <button onclick="hapusPesanan(${p.id})" style="background:none;border:none;color:#64748b;cursor:pointer;padding:2px 6px;border-radius:6px;font-size:14px" onmouseover="this.style.color='#dc2626'" onmouseout="this.style.color='#64748b'">✕</button>
+                    </div>
+                    <div style="font-size:11px;color:#64748b;margin-bottom:6px">${p.nama_layanan} • ${p.jumlah}</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <span style="font-weight:800;color:var(--warna-utama);font-size:13px">Rp ${parseFloat(p.total_harga).toLocaleString('id-ID')}</span>
+                        <span class="status-badge ${sc}" style="font-size:11px">${s.key}</span>
+                    </div>
+                    <!-- DROPDOWN UBAH STATUS -->
+                    <select onchange="ubahStatusPesanan(${p.id}, this.value)" style="width:100%;padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;background:white;cursor:pointer;outline:none" onmouseover="this.style.borderColor='var(--warna-utama)'" onmouseout="this.style.borderColor='#e2e8f0'">
+                        <option value="" disabled selected>🔄 Ubah Status</option>
+                        ${allStatuses.map(st => `<option value="${st}">${st}</option>`).join('')}
+                    </select>
+                </div>
+            `;
+        }).join('') || '<div style="text-align:center;padding:20px;color:#64748b;font-size:12px">Tidak ada</div>';
+    });
+}
+
+async function ubahStatusPesanan(id, statusBaru){
+    if(!statusBaru) return;
+    await api(`/api/pesanan/${id}`, 'PUT', {status: statusBaru});
+    loadPesanan();
+    loadDashboard();
+    toast(`Status diubah menjadi "${statusBaru}"`);
+}
+
+function allowDrop(e){ e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function dragLeave(e){ e.currentTarget.classList.remove('drag-over'); }
+function dragStart(e,id){ draggedId = id; e.currentTarget.classList.add('dragging'); }
+function dragEnd(e){ e.currentTarget.classList.remove('dragging'); }
+
+async function dropKanban(e, status){
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if(draggedId){
+        await api(`/api/pesanan/${draggedId}`, 'PUT', {status});
+        loadPesanan(); loadDashboard();
+        toast(`Status diubah menjadi "${status}"`);
+    }
+}
+
+async function hapusPesanan(id){
+    if(confirm('Hapus pesanan ini?')){
+        await api(`/api/pesanan/${id}`, 'DELETE');
+        loadPesanan(); loadDashboard();
+        toast('Pesanan dihapus');
+    }
+}
+
+// ============ KASIR & STRUK ============
+async function loadKasir(){
+    layananList = await api('/api/layanan');
+    const select = document.getElementById('order-layanan');
+    select.innerHTML = layananList.filter(l => l.harga > 0).map(l => 
+        `<option value="${l.id}" data-harga="${l.harga}" data-nama="${l.nama}" data-satuan="${l.satuan}">${l.nama} - Rp ${parseFloat(l.harga).toLocaleString('id-ID')}/${l.satuan}</option>`
+    ).join('');
+    hitungTotal();
+}
+
+function hitungTotal(){
+    const sel = document.getElementById('order-layanan').selectedOptions[0];
+    if(!sel) return;
+    const harga = parseFloat(sel.dataset.harga);
+    const nama = sel.dataset.nama;
+    const satuan = sel.dataset.satuan;
+    const jumlah = parseFloat(document.getElementById('order-jumlah').value) || 0;
+    document.getElementById('ringkasan-layanan').textContent = nama;
+    document.getElementById('ringkasan-satuan').textContent = 'Rp ' + harga.toLocaleString('id-ID') + '/' + satuan;
+    document.getElementById('ringkasan-jumlah').textContent = jumlah + ' ' + satuan;
+    document.getElementById('ringkasan-total').textContent = 'Rp ' + (harga * jumlah).toLocaleString('id-ID');
+}
+
+async function buatPesanan(e){
+    e.preventDefault();
+    const sel = document.getElementById('order-layanan').selectedOptions[0];
+    const harga = parseFloat(sel.dataset.harga);
+    const nama_layanan = sel.dataset.nama;
+    const satuan = sel.dataset.satuan;
+    const jumlah = parseFloat(document.getElementById('order-jumlah').value);
+    const metode = document.querySelector('input[name="metode"]:checked').value;
+    const nama_pelanggan = document.getElementById('order-nama').value;
+    const no_hp = document.getElementById('order-hp').value;
+    const total = harga * jumlah;
+    
+    await api('/api/pesanan', 'POST', {nama_pelanggan, no_hp, nama_layanan, jumlah, total_harga: total, metode_bayar: metode});
+    
+    lastOrderData = {nama_pelanggan, no_hp, nama_layanan, satuan, jumlah, total, metode};
+    tampilkanStruk(lastOrderData);
+    
+    e.target.reset();
+    document.getElementById('order-jumlah').value = '1';
+    hitungTotal();
+    toast('Pesanan berhasil dibuat!');
+    loadDashboard();
+}
+
+function tampilkanStruk(data){
+    const now = new Date();
+    const id = pesananList.length > 0 ? Math.max(...pesananList.map(p=>p.id)) + 1 : 1;
+    document.getElementById('struk-id').textContent = '#' + id;
+    document.getElementById('struk-tanggal').textContent = now.toLocaleString('id-ID');
+    document.getElementById('struk-pelanggan').textContent = data.nama_pelanggan + ' (' + data.no_hp + ')';
+    document.getElementById('struk-layanan').textContent = data.nama_layanan;
+    document.getElementById('struk-jumlah').textContent = data.jumlah + ' ' + data.satuan + ' x Rp ' + (data.total/data.jumlah).toLocaleString('id-ID');
+    document.getElementById('struk-subtotal').textContent = 'Rp ' + data.total.toLocaleString('id-ID');
+    document.getElementById('struk-total').textContent = 'Rp ' + data.total.toLocaleString('id-ID');
+    document.getElementById('struk-metode').textContent = data.metode;
+    document.getElementById('modal-struk').style.display = 'flex';
+}
+
+function tutupStruk(){
+    document.getElementById('modal-struk').style.display = 'none';
+}
+
+function cetakStruk(){
+    window.print();
+}
+
+// ============ PELANGGAN ============
+async function loadPelanggan(){
+    pesananList = await api('/api/pesanan');
+    renderPelanggan();
+}
+
+function renderPelanggan(){
+    const search = document.getElementById('search-pelanggan')?.value?.toLowerCase() || '';
+    const map = {};
+    pesananList.forEach(p => {
+        if(!map[p.no_hp]) map[p.no_hp] = {nama:p.nama_pelanggan, no_hp:p.no_hp, total_transaksi:0, total_belanja:0, terakhir:null};
+        map[p.no_hp].total_transaksi++;
+        map[p.no_hp].total_belanja += parseFloat(p.total_harga);
+        const tgl = new Date(p.tanggal);
+        if(!map[p.no_hp].terakhir || tgl > map[p.no_hp].terakhir) map[p.no_hp].terakhir = tgl;
+    });
+    const list = Object.values(map).filter(p => p.nama.toLowerCase().includes(search) || p.no_hp.includes(search));
+    document.getElementById('table-pelanggan').innerHTML = list.length ? list.map(p => `
+        <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:12px 16px;font-weight:700">${p.nama}</td>
+            <td style="padding:12px 16px">${p.no_hp}</td>
+            <td style="padding:12px 16px">${p.total_transaksi}</td>
+            <td style="padding:12px 16px;font-weight:800;color:var(--warna-utama)">Rp ${p.total_belanja.toLocaleString('id-ID')}</td>
+            <td style="padding:12px 16px;font-size:13px;color:#64748b">${p.terakhir.toLocaleDateString('id-ID')}</td>
+        </tr>
+    `).join('') : '<tr><td colspan="5" style="padding:28px;text-align:center;color:#64748b;font-size:13px">Belum ada data</td></tr>';
+}
+
+// ============ LAYANAN ============
+async function loadLayanan(){
+    layananList = await api('/api/layanan');
+    document.getElementById('table-layanan').innerHTML = layananList.map(l => `
+        <tr style="border-bottom:1px solid #e2e8f0">
+            <td style="padding:12px 16px;font-weight:700">
+                <i class="fas ${l.ikon}" style="margin-right:8px;color:var(--warna-utama)"></i>${l.nama}
+            </td>
+            <td style="padding:12px 16px;font-weight:700">Rp ${parseFloat(l.harga).toLocaleString('id-ID')}</td>
+            <td style="padding:12px 16px">${l.satuan}</td>
+            <td style="padding:12px 16px">
+                <button class="btn-hapus" onclick="hapusLayanan(${l.id})">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function tambahLayanan(e){
+    e.preventDefault();
+    await api('/api/layanan', 'POST', {
+        nama: document.getElementById('layanan-nama').value,
+        harga: parseFloat(document.getElementById('layanan-harga').value),
+        satuan: document.getElementById('layanan-satuan').value,
+        ikon: document.getElementById('layanan-ikon').value || 'fa-tshirt',
+        deskripsi: document.getElementById('layanan-deskripsi').value
+    });
+    e.target.reset();
+    document.getElementById('layanan-ikon').value = 'fa-tshirt';
+    loadLayanan(); loadKasir();
+    toast('Layanan ditambahkan!');
+}
+
+async function hapusLayanan(id){
+    if(confirm('Hapus layanan ini?')){
+        await api(`/api/layanan/${id}`, 'DELETE');
+        loadLayanan(); loadKasir();
+        toast('Layanan dihapus');
+    }
+}
+
+// ============ INVENTORY ============
+async function loadInventory(){
+    inventoryList = await api('/api/inventory');
+    document.getElementById('inventory-grid').innerHTML = inventoryList.map(i => {
+        const low = i.stok <= i.stok_min;
+        return `
+            <div class="card-hover" style="background:white;border-radius:18px;padding:20px;border:1px solid ${low ? '#fca5a5' : '#e2e8f0'};position:relative">
+                ${low ? '<div style="position:absolute;top:10px;right:10px;background:rgba(220,38,38,.1);color:#dc2626;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">Menipis!</div>' : ''}
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+                    <div style="width:42px;height:42px;border-radius:12px;background:${low ? 'rgba(220,38,38,.1)' : 'rgba(13,150,105,.1)'};display:flex;align-items:center;justify-content:center;color:${low ? '#dc2626' : 'var(--warna-utama)'}">
+                        <i class="fas fa-box"></i>
+                    </div>
+                    <div>
+                        <div style="font-weight:800;font-size:15px">${i.nama}</div>
+                        <div style="font-size:12px;color:#64748b">Min: ${i.stok_min} ${i.unit}</div>
+                    </div>
+                </div>
+                <div style="font-size:28px;font-weight:800;color:${low ? '#dc2626' : 'var(--warna-utama)'}">${i.stok} <span style="font-size:14px;color:#64748b;font-weight:600">${i.unit}</span></div>
+                <div style="display:flex;gap:8px;margin-top:12px">
+                    <button onclick="editInventory(${i.id})" class="btn-kedua" style="padding:6px 12px;font-size:12px;flex:1;justify-content:center">
+                        <i class="fas fa-edit"></i>Edit
+                    </button>
+                    <button onclick="hapusInventory(${i.id})" class="btn-hapus" style="padding:6px 10px">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function tambahInventory(){
+    const nama = prompt('Nama item:'); if(!nama) return;
+    const stok = parseFloat(prompt('Jumlah stok:', '0'));
+    const unit = prompt('Satuan (Kg/Liter/Pcs):', 'Pcs');
+    const stok_min = parseFloat(prompt('Stok minimum:', '0'));
+    await api('/api/inventory', 'POST', {nama, stok, unit, stok_min});
+    loadInventory(); toast('Item ditambahkan!');
+}
+
+async function editInventory(id){
+    const item = inventoryList.find(i => i.id === id); if(!item) return;
+    const nama = prompt('Nama:', item.nama); if(!nama) return;
+    const stok = parseFloat(prompt('Stok:', item.stok));
+    const unit = prompt('Satuan:', item.unit);
+    const stok_min = parseFloat(prompt('Stok min:', item.stok_min));
+    await api(`/api/inventory/${id}`, 'PUT', {nama, stok, unit, stok_min});
+    loadInventory(); toast('Item diperbarui!');
+}
+
+async function hapusInventory(id){
+    if(confirm('Hapus item?')){
+        await api(`/api/inventory/${id}`, 'DELETE');
+        loadInventory(); toast('Item dihapus');
+    }
+}
+
+// ============ LAPORAN & EXPORT PDF ============
+async function loadLaporan(){
+    const lap = await api('/api/laporan');
+    pesananList = await api('/api/pesanan');
+    
+    document.getElementById('lap-harian').textContent = 'Rp ' + parseFloat(lap.harian.total).toLocaleString('id-ID');
+    document.getElementById('lap-harian-cnt').textContent = lap.harian.count + ' transaksi';
+    document.getElementById('lap-mingguan').textContent = 'Rp ' + parseFloat(lap.mingguan.total).toLocaleString('id-ID');
+    document.getElementById('lap-mingguan-cnt').textContent = lap.mingguan.count + ' transaksi';
+    document.getElementById('lap-bulanan').textContent = 'Rp ' + parseFloat(lap.bulanan.total).toLocaleString('id-ID');
+    document.getElementById('lap-bulanan-cnt').textContent = lap.bulanan.count + ' transaksi';
+    
+    document.getElementById('table-laporan-body').innerHTML = pesananList.length ? pesananList.map(p => {
+        const sc = p.status === 'Diterima' ? 'status-diterima' : p.status === 'Sedang Dicuci' ? 'status-dicuci' : p.status === 'Siap Diambil' ? 'status-siap' : 'status-selesai';
+        return `
+            <tr style="border-bottom:1px solid #e2e8f0">
+                <td style="padding:10px 16px;font-weight:700">#${p.id}</td>
+                <td style="padding:10px 16px">${p.nama_pelanggan}</td>
+                <td style="padding:10px 16px">${p.nama_layanan}</td>
+                <td style="padding:10px 16px;font-weight:800;color:var(--warna-utama)">Rp ${parseFloat(p.total_harga).toLocaleString('id-ID')}</td>
+                <td style="padding:10px 16px"><span class="status-badge ${sc}" style="font-size:11px">${p.status}</span></td>
+                <td style="padding:10px 16px;font-size:13px;color:#64748b">${new Date(p.tanggal).toLocaleDateString('id-ID')}</td>
+            </tr>
+        `;
+    }).join('') : '<tr><td colspan="6" style="padding:28px;text-align:center;color:#64748b;font-size:13px">Belum ada transaksi</td></tr>';
+}
+
+async function exportPDF(){
+    const { jsPDF } = window.jspdf;
+    const lap = await api('/api/laporan');
+    pesananList = await api('/api/pesanan');
+
+    const doc = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 16;
+    const primary = [13,150,105];
+    const dark = [15,23,42];
+    const muted = [100,116,139];
+    const soft = [247,252,249];
+
+    const rupiah = value => {
+        const n = Number(value || 0);
+        return 'Rp ' + n.toLocaleString('id-ID');
+    };
+
+    const safeText = value => String(value ?? '-');
+
+    // Header profesional — seluruhnya teks/vector, tidak mengambil screenshot halaman.
+    doc.setFillColor(...primary);
+    doc.roundedRect(margin, 14, pageWidth - margin*2, 30, 4, 4, 'F');
+
+    doc.setTextColor(255,255,255);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(17);
+    doc.text(safeText('{{ p.nama_website }}'), margin + 8, 26);
+
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.text('LAPORAN KEUANGAN', margin + 8, 34);
+    doc.text('Dicetak: ' + new Date().toLocaleString('id-ID'), pageWidth - margin - 8, 34, {align:'right'});
+
+    // Ringkasan
+    doc.setTextColor(...dark);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(12);
+    doc.text('Ringkasan Keuangan', margin, 56);
+
+    const boxes = [
+        {label:'HARI INI', value:rupiah(lap.harian.total), count:(lap.harian.count || 0) + ' transaksi', fill:[13,150,105]},
+        {label:'MINGGU INI', value:rupiah(lap.mingguan.total), count:(lap.mingguan.count || 0) + ' transaksi', fill:[212,114,74]},
+        {label:'BULAN INI', value:rupiah(lap.bulanan.total), count:(lap.bulanan.count || 0) + ' transaksi', fill:[139,92,246]}
+    ];
+
+    const gap = 5;
+    const boxW = (pageWidth - margin*2 - gap*2) / 3;
+    boxes.forEach((b, i) => {
+        const x = margin + i * (boxW + gap);
+        doc.setFillColor(250,250,250);
+        doc.setDrawColor(...b.fill);
+        doc.setLineWidth(.5);
+        doc.roundedRect(x, 62, boxW, 31, 3, 3, 'FD');
+
+        doc.setTextColor(...b.fill);
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(8);
+        doc.text(b.label, x + 5, 70);
+
+        doc.setTextColor(...dark);
+        doc.setFontSize(10.5);
+        doc.text(b.value, x + 5, 79);
+
+        doc.setTextColor(...muted);
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(7.5);
+        doc.text(b.count, x + 5, 87);
+    });
+
+    // Tabel transaksi.
+    doc.setTextColor(...dark);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(12);
+    doc.text('Riwayat Transaksi', margin, 105);
+
+    const tableData = (pesananList || []).map(p => [
+        '#' + safeText(p.id),
+        safeText(p.nama_pelanggan),
+        safeText(p.nama_layanan),
+        rupiah(p.total_harga),
+        safeText(p.status),
+        p.tanggal ? new Date(p.tanggal).toLocaleDateString('id-ID') : '-'
+    ]);
+
+    doc.autoTable({
+        startY: 111,
+        head: [['ID','Pelanggan','Layanan','Total','Status','Tanggal']],
+        body: tableData.length ? tableData : [['-','-','Tidak ada data','-','-','-']],
+        margin: {left:margin, right:margin, top:18, bottom:18},
+        theme: 'grid',
+        styles: {
+            font:'helvetica',
+            fontSize:7.5,
+            cellPadding:3.2,
+            textColor:dark,
+            lineColor:[226,232,240],
+            lineWidth:.25,
+            overflow:'linebreak'
+        },
+        headStyles: {
+            fillColor:primary,
+            textColor:[255,255,255],
+            fontStyle:'bold',
+            fontSize:7.5,
+            halign:'left'
+        },
+        alternateRowStyles: {fillColor:soft},
+        columnStyles: {
+            0:{cellWidth:14},
+            1:{cellWidth:34},
+            2:{cellWidth:38},
+            3:{cellWidth:31,halign:'right'},
+            4:{cellWidth:25},
+            5:{cellWidth:29}
+        },
+        didDrawPage: function(data){
+            doc.setDrawColor(226,232,240);
+            doc.line(margin, pageHeight - 13, pageWidth - margin, pageHeight - 13);
+            doc.setTextColor(...muted);
+            doc.setFont('helvetica','normal');
+            doc.setFontSize(7);
+            doc.text('{{ p.nama_website }} • Laporan Keuangan', margin, pageHeight - 8);
+            doc.text('Halaman ' + doc.internal.getNumberOfPages(), pageWidth - margin, pageHeight - 8, {align:'right'});
+        }
+    });
+
+    // Total di bawah tabel pada halaman terakhir.
+    const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : 120;
+    let y = finalY + 12;
+    if(y > pageHeight - 28){
+        doc.addPage();
+        y = 24;
+    }
+
+    const totalAll = (pesananList || []).reduce((sum,p) => sum + Number(p.total_harga || 0), 0);
+    doc.setFillColor(...soft);
+    doc.setDrawColor(226,232,240);
+    doc.roundedRect(margin, y, pageWidth - margin*2, 20, 3, 3, 'FD');
+    doc.setTextColor(...muted);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(8);
+    doc.text('TOTAL NILAI TRANSAKSI', margin + 6, y + 8);
+    doc.setTextColor(...primary);
+    doc.setFontSize(12);
+    doc.text(rupiah(totalAll), pageWidth - margin - 6, y + 13, {align:'right'});
+
+    doc.save('Laporan-Keuangan-' + new Date().toISOString().split('T')[0] + '.pdf');
+    toast('PDF berhasil dibuat dalam format teks dan tabel!');
+}
+
+// ============ PENGATURAN ============
+async function simpanPengaturan(e){
+    e.preventDefault();
+    const form = e.target;
+    const waInput = form.querySelector('input[name=nomor_wa]');
+    if(waInput){
+        const digits = waInput.value.replace(/\D/g,'');
+        const local = digits.startsWith('62') ? '0' + digits.slice(2) : digits;
+        if(!/^08[1-9]\d{7,10}$/.test(local)){
+            toast('Nomor WhatsApp wajib nomor Indonesia. Contoh: 081234567890','error');
+            waInput.focus();
+            return;
+        }
+        waInput.value = local;
+    }
+    const data = {};
+    form.querySelectorAll('input[name], textarea[name]').forEach(inp => {
+        let name = inp.name;
+        if(name.endsWith('_text')) return;
+        if(name === 'warna_utama') data[name] = form.querySelector('input[name=warna_utama]').value;
+        else if(name === 'warna_sekunder') data[name] = form.querySelector('input[name=warna_sekunder]').value;
+        else data[name] = inp.value;
+    });
+    const result = await api('/api/pengaturan', 'POST', data);
+    if(result && result.error){ toast(result.error,'error'); return; }
+    toast('Pengaturan disimpan! Refresh untuk lihat perubahan warna.');
+}
+
+async function uploadLogo(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    const formData = new FormData();
+    formData.append('logo', file);
+    const res = await api('/api/upload-logo', 'POST', formData, true);
+    if(res.path){
+        toast('Logo berhasil diupload!');
+        location.reload();
+    } else {
+        toast(res.error || 'Gagal upload', 'error');
+    }
+}
+
+async function hapusLogo(){
+    if(confirm('Hapus logo?')){
+        await api('/api/delete-logo', 'POST');
+        toast('Logo dihapus');
+        location.reload();
+    }
+}
+
+
+async function uploadHeroIcon(e,which){const f=e.target.files&&e.target.files[0];if(!f)return;if(!f.type.startsWith('image/')){toast('File harus berupa gambar','error');e.target.value='';return}if(f.size>2097152){toast('Ukuran maksimal 2 MB','error');e.target.value='';return}const fd=new FormData();const endpoint=which===2?'/api/upload-hero-icon-2':'/api/upload-hero-icon';fd.append(which===2?'hero_icon_2':'hero_icon',f);const r=await api(endpoint,'POST',fd,true);if(r&&r.path){toast(which===2?'Ikon Bagian Keluarga berhasil diubah!':'Ikon Hero Utama berhasil diubah!');setTimeout(()=>location.reload(),400)}else toast((r&&r.error)||'Upload gagal','error')}
+async function hapusHeroIcon(which){if(!confirm(which===2?'Kembalikan Ikon Bagian Keluarga?':'Kembalikan Ikon Hero Utama?'))return;const endpoint=which===2?'/api/delete-hero-icon-2':'/api/delete-hero-icon';const r=await api(endpoint,'POST');if(r&&!r.error){toast('Ikon dikembalikan');setTimeout(()=>location.reload(),400)}else toast((r&&r.error)||'Gagal mengembalikan ikon','error')}
+
+// ============ INIT ============
+loadDashboard();
+</script>
+</body>
+</html>
